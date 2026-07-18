@@ -24,13 +24,24 @@
     h2 { color: #3b5998; margin-top: 0; text-align: center; }
     .field { margin-bottom: 16px; }
     label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #444; }
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], input[type="file"] {
       width: 100%;
       padding: 10px;
       box-sizing: border-box;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 14px;
+    }
+    input[type="file"] {
+      padding: 6px;
+      background: #fafafa;
+      cursor: pointer;
+    }
+    .file-status {
+      font-size: 12px;
+      color: #28a745;
+      margin-top: 4px;
+      font-weight: 500;
     }
     .row { display: flex; gap: 12px; }
     .row input { flex: 1; }
@@ -80,8 +91,9 @@
   <h2>CF Problem Finder</h2>
   
   <div class="field">
-    <label for="handle">Your Codeforces Handle</label>
-    <input type="text" id="handle" placeholder="e.g., Tourist">
+    <label for="fileInput">Upload Friends List (.txt file, one handle per line)</label>
+    <input type="file" id="fileInput" accept=".txt">
+    <div id="fileStatus" class="file-status">No handles loaded. Please upload a file.</div>
   </div>
 
   <div class="field">
@@ -103,7 +115,7 @@
   </div>
 
   <button id="findBtn">Find Unsolved Problems</button>
-  <div id="status">Fill details and search</div>
+  <div id="status">Ready</div>
   <div id="results"></div>
 </div>
 

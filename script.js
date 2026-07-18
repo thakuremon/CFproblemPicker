@@ -1,23 +1,61 @@
-/*
- *   Copyright (c) 2026 Emon Thakur
- *   All rights reserved.
- */
 const REQUEST_DELAY = 300; 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+let loadedFriends = [];
+
+// Load handles from localStorage automatically when the page boots up
+window.addEventListener('DOMContentLoaded', () => {
+  const cachedFriends = localStorage.getItem('cf_saved_friends');
+  const fileStatusDiv = document.getElementById('fileStatus');
+  
+  if (cachedFriends) {
+    loadedFriends = JSON.parse(cachedFriends);
+    fileStatusDiv.innerText = `✓ Loaded ${loadedFriends.length} handles from persistent storage.`;
+    fileStatusDiv.style.color = '#28a745';
+  }
+});
+
+// Watch for file upload changes, process text strings, and update localStorage cache
+document.getElementById('fileInput').addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  const fileStatusDiv = document.getElementById('fileStatus');
+  
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    
+    // Split by newlines, trim whitespace, and clean out empty elements
+    loadedFriends = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    if (loadedFriends.length > 0) {
+      localStorage.setItem('cf_saved_friends', JSON.stringify(loadedFriends));
+      // Reset the user submission history cache since the friend group configuration changed
+      localStorage.removeItem('cf_submission_history_cache');
+      
+      fileStatusDiv.innerText = `✓ Successfully saved ${loadedFriends.length} handles. Ready to use!`;
+      fileStatusDiv.style.color = '#28a745';
+    } else {
+      fileStatusDiv.innerText = "Error: The uploaded file appears to be empty.";
+      fileStatusDiv.style.color = '#dc3545';
+    }
+  };
+  reader.readAsText(file);
+});
 
 document.getElementById('findBtn').addEventListener('click', async () => {
   const findBtn = document.getElementById('findBtn');
   const statusDiv = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
   
-  const handle = document.getElementById('handle').value.trim();
   const tags = document.getElementById('tags').value.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
   const minRating = parseInt(document.getElementById('minRating').value) || 0;
   const maxRating = parseInt(document.getElementById('maxRating').value) || 5000;
   const count = parseInt(document.getElementById('count').value) || 5;
 
-  if (!handle) {
-    statusDiv.innerText = "Please enter your Codeforces handle!";
+  if (loadedFriends.length === 0) {
+    statusDiv.innerText = "Error: Please upload a text file containing friend handles first!";
     return;
   }
 
@@ -25,31 +63,20 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   resultsDiv.innerHTML = '';
   
   try {
-    // Step 1: Fetch friends list via public profile page parsing using an open proxy bypass
-    statusDiv.innerText = "Fetching your friends list...";
-    const friends = await fetchFriendsList(handle);
-    
-    if (friends.length === 0) {
-      statusDiv.innerText = "No public friends found or handle is incorrect.";
-      findBtn.disabled = false;
-      return;
-    }
-
-    // Check local storage cache first to save execution time
-    const cacheKey = `cf_cache_${handle}`;
-    const cachedData = localStorage.getItem(cacheKey);
-    const cachedTime = localStorage.getItem(cacheKey + '_time');
     let solvedSet = new Set();
+    
+    const cachedData = localStorage.getItem('cf_submission_history_cache');
+    const cachedTime = localStorage.getItem('cf_submission_history_time');
 
-    if (cachedData && cachedTime && (Date.now() - cachedTime < 3600000)) {
-      statusDiv.innerText = "Loading cached friend histories...";
+    if (cachedData && cachedTime && (Date.now() - parseInt(cachedTime) < 3600000)) {
+      statusDiv.innerText = "Loading cached friend problem histories...";
       solvedSet = new Set(JSON.parse(cachedData));
     } else {
-      // Step 2: Query API history strings per unique friend
-      for (let i = 0; i < friends.length; i++) {
-        statusDiv.innerText = `Syncing friend data [${i + 1}/${friends.length}]: ${friends[i]}`;
+      // Loop through all verified handles in our active file pool
+      for (let i = 0; i < loadedFriends.length; i++) {
+        statusDiv.innerText = `Syncing data [${i + 1}/${loadedFriends.length}]: ${loadedFriends[i]}`;
         try {
-          const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(friends[i])}`);
+          const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(loadedFriends[i])}`);
           const data = await res.json();
           if (data.status === 'OK') {
             data.result.forEach(sub => {
@@ -61,17 +88,14 @@ document.getElementById('findBtn').addEventListener('click', async () => {
         } catch (e) { console.error(e); }
         await delay(REQUEST_DELAY);
       }
-      // Save data back to localStorage standard cache
-      localStorage.setItem(cacheKey, JSON.stringify(Array.from(solvedSet)));
-      localStorage.setItem(cacheKey + '_time', Date.now().toString());
+      localStorage.setItem('cf_submission_history_cache', JSON.stringify(Array.from(solvedSet)));
+      localStorage.setItem('cf_submission_history_time', Date.now().toString());
     }
 
-    // Step 3: Fetch standard problems
-    statusDiv.innerText = "Fetching problem matrices...";
+    statusDiv.innerText = "Fetching standard problems...";
     const pRes = await fetch('https://codeforces.com/api/problemset.problems');
     const pData = await pRes.json();
     
-    // Fetch structural Gym parameters also
     statusDiv.innerText = "Fetching Gym rosters...";
     const gymRes = await fetch('https://codeforces.com/api/contest.list?gym=true');
     const gymData = await gymRes.json();
@@ -83,12 +107,11 @@ document.getElementById('findBtn').addEventListener('click', async () => {
       }));
     }
 
-    // Add recent Gym index variations 
     if (gymData.status === 'OK') {
-      const recentGyms = gymData.result.slice(0, 20); // Kept lower on web to prevent UI locking
+      const recentGyms = gymData.result.slice(0, 15); 
       for (const gym of recentGyms) {
         try {
-          const gStatus = await fetch(`https://codeforces.com/api/contest.status?contestId=${gym.id}&from=1&count=50`);
+          const gStatus = await fetch(`https://codeforces.com/api/contest.status?contestId=${gym.id}&from=1&count=40`);
           const gData = await gStatus.json();
           if (gData.status === 'OK') {
             const seen = new Set();
@@ -108,7 +131,6 @@ document.getElementById('findBtn').addEventListener('click', async () => {
       }
     }
 
-    // Step 4: Run target filter evaluations
     statusDiv.innerText = "Filtering results...";
     const filtered = allProblems.filter(p => {
       const uniqueKey = p.contestId + p.index;
@@ -131,9 +153,9 @@ document.getElementById('findBtn').addEventListener('click', async () => {
     const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, count);
 
     if (shuffled.length === 0) {
-      statusDiv.innerText = "No matches found.";
+      statusDiv.innerText = "No matching problems found.";
     } else {
-      statusDiv.innerText = `Success! Found ${shuffled.length} problems.`;
+      statusDiv.innerText = `Success! Found ${shuffled.length} problem(s).`;
       shuffled.forEach(p => {
         const a = document.createElement('a');
         a.href = p.url;
@@ -150,24 +172,3 @@ document.getElementById('findBtn').addEventListener('click', async () => {
     findBtn.disabled = false;
   }
 });
-
-// Web version targets the public friend list page through a free proxy service to avoid local client CORS blocking rules
-async function fetchFriendsList(handle) {
-  const proxyUrl = 'https://api.allorigins.win/get?url=';
-  const targetUrl = encodeURIComponent(`https://codeforces.com/friends/of/${handle}`);
-  
-  const response = await fetch(`${proxyUrl}${targetUrl}`);
-  const data = await response.json();
-  const html = data.contents;
-  
-  const handleRegex = /\/profile\/([a-zA-Z0-9_\-]+)"/g;
-  const friends = new Set();
-  let match;
-  
-  while ((match = handleRegex.exec(html)) !== null) {
-    if (match[1].toLowerCase() !== handle.toLowerCase()) {
-      friends.add(match[1]);
-    }
-  }
-  return Array.from(friends);
-}
