@@ -1,13 +1,49 @@
 const REQUEST_DELAY = 300; 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-let loadedFriends = [];
+const FRIENDS_CACHE_DURATION = 60 * 60 * 1000;        
+const PROBLEMS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; 
 
-// Load handles from localStorage automatically when the page boots up
+// The comprehensive array of all official Codeforces problem tags
+const CF_AVAILABLE_TAGS = [
+  "2-sat", "binary search", "bitmasks", "brute force", "busyness", 
+  "chinese remainder theorem", "combinatorics", "constructive algorithms", 
+  "data structures", "dfs and similar", "divide and conquer", "dp", 
+  "dsu", "expression parsing", "fft", "flows", "games", "geometry", 
+  "graph matchings", "graphs", "greedy", "hashing", "implementation", 
+  "interactive", "math", "matrices", "meet-in-the-middle", "number theory", 
+  "probabilities", "schedules", "shortest paths", "sortings", "string suffix structures", 
+  "strings", "ternary search", "trees", "two pointers"
+];
+
+let loadedFriends = [];
+let selectedTags = new Set();
+
+// Populate the visual tag selectors dynamically on startup
 window.addEventListener('DOMContentLoaded', () => {
+  const tagsContainer = document.getElementById('tagsContainer');
+  
+  CF_AVAILABLE_TAGS.forEach(tag => {
+    const chip = document.createElement('div');
+    chip.className = 'tag-chip';
+    chip.innerText = tag;
+    
+    chip.addEventListener('click', () => {
+      if (selectedTags.has(tag)) {
+        selectedTags.delete(tag);
+        chip.classList.remove('selected');
+      } else {
+        selectedTags.add(tag);
+        chip.classList.add('selected');
+      }
+    });
+    
+    tagsContainer.appendChild(chip);
+  });
+
+  // Load handles from localStorage cache if present
   const cachedFriends = localStorage.getItem('cf_saved_friends');
   const fileStatusDiv = document.getElementById('fileStatus');
-  
   if (cachedFriends) {
     loadedFriends = JSON.parse(cachedFriends);
     fileStatusDiv.innerText = `✓ Loaded ${loadedFriends.length} handles from persistent storage.`;
@@ -15,25 +51,20 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Watch for file upload changes, process text strings, and update localStorage cache
+// Watch for file upload changes and save values
 document.getElementById('fileInput').addEventListener('change', (event) => {
   const file = event.target.files[0];
   const fileStatusDiv = document.getElementById('fileStatus');
-  
   if (!file) return;
 
   const reader = new FileReader();
   reader.onload = (e) => {
     const text = e.target.result;
-    
-    // Split by newlines, trim whitespace, and clean out empty elements
     loadedFriends = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
     
     if (loadedFriends.length > 0) {
       localStorage.setItem('cf_saved_friends', JSON.stringify(loadedFriends));
-      // Reset the user submission history cache since the friend group configuration changed
       localStorage.removeItem('cf_submission_history_cache');
-      
       fileStatusDiv.innerText = `✓ Successfully saved ${loadedFriends.length} handles. Ready to use!`;
       fileStatusDiv.style.color = '#28a745';
     } else {
@@ -49,7 +80,6 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   const statusDiv = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
   
-  const tags = document.getElementById('tags').value.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
   const minRating = parseInt(document.getElementById('minRating').value) || 0;
   const maxRating = parseInt(document.getElementById('maxRating').value) || 5000;
   const count = parseInt(document.getElementById('count').value) || 5;
@@ -64,15 +94,16 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   
   try {
     let solvedSet = new Set();
+    const now = Date.now();
     
-    const cachedData = localStorage.getItem('cf_submission_history_cache');
-    const cachedTime = localStorage.getItem('cf_submission_history_time');
+    // --- LAYER 1: FRIEND SUBMISSION CACHE ---
+    const cachedFriendsData = localStorage.getItem('cf_submission_history_cache');
+    const cachedFriendsTime = localStorage.getItem('cf_submission_history_time');
 
-    if (cachedData && cachedTime && (Date.now() - parseInt(cachedTime) < 3600000)) {
+    if (cachedFriendsData && cachedFriendsTime && (now - parseInt(cachedFriendsTime) < FRIENDS_CACHE_DURATION)) {
       statusDiv.innerText = "Loading cached friend problem histories...";
-      solvedSet = new Set(JSON.parse(cachedData));
+      solvedSet = new Set(JSON.parse(cachedFriendsData));
     } else {
-      // Loop through all verified handles in our active file pool
       for (let i = 0; i < loadedFriends.length; i++) {
         statusDiv.innerText = `Syncing data [${i + 1}/${loadedFriends.length}]: ${loadedFriends[i]}`;
         try {
@@ -89,63 +120,59 @@ document.getElementById('findBtn').addEventListener('click', async () => {
         await delay(REQUEST_DELAY);
       }
       localStorage.setItem('cf_submission_history_cache', JSON.stringify(Array.from(solvedSet)));
-      localStorage.setItem('cf_submission_history_time', Date.now().toString());
+      localStorage.setItem('cf_submission_history_time', now.toString());
     }
 
-    statusDiv.innerText = "Fetching standard problems...";
-    const pRes = await fetch('https://codeforces.com/api/problemset.problems');
-    const pData = await pRes.json();
-    
-    statusDiv.innerText = "Fetching Gym rosters...";
-    const gymRes = await fetch('https://codeforces.com/api/contest.list?gym=true');
-    const gymData = await gymRes.json();
-    
+    // --- LAYER 2: GLOBAL PROBLEM LIST CACHE ---
     let allProblems = [];
-    if (pData.status === 'OK') {
-      allProblems = pData.result.problems.map(p => ({
-        ...p, url: `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`, isGym: false
-      }));
-    }
+    const cachedProblemsData = localStorage.getItem('cf_global_problems_cache');
+    const cachedProblemsTime = localStorage.getItem('cf_global_problems_time');
 
-    if (gymData.status === 'OK') {
-      const recentGyms = gymData.result.slice(0, 15); 
-      for (const gym of recentGyms) {
-        try {
-          const gStatus = await fetch(`https://codeforces.com/api/contest.status?contestId=${gym.id}&from=1&count=40`);
-          const gData = await gStatus.json();
-          if (gData.status === 'OK') {
-            const seen = new Set();
-            gData.result.forEach(sub => {
-              const key = sub.problem.contestId + sub.problem.index;
-              if (!seen.has(key)) {
-                seen.add(key);
-                allProblems.push({
-                  ...sub.problem,
-                  url: `https://codeforces.com/gym/${sub.problem.contestId}/problem/${sub.problem.index}`,
-                  isGym: true
-                });
-              }
-            });
-          }
-        } catch (e) {}
+    if (cachedProblemsData && cachedProblemsTime && (now - parseInt(cachedProblemsTime) < PROBLEMS_CACHE_DURATION)) {
+      statusDiv.innerText = "Loading cached Codeforces problem sets...";
+      allProblems = JSON.parse(cachedProblemsData);
+    } else {
+      statusDiv.innerText = "Fetching fresh standard problems from CF...";
+      const pRes = await fetch('https://codeforces.com/api/problemset.problems');
+      const pData = await pRes.json();
+      
+      if (pData.status === 'OK') {
+        allProblems = pData.result.problems.map(p => ({
+          contestId: p.contestId,
+          index: p.index,
+          name: p.name,
+          rating: p.rating,
+          tags: p.tags,
+          url: `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`
+        }));
+      }
+
+      if (allProblems.length > 0) {
+        localStorage.setItem('cf_global_problems_cache', JSON.stringify(allProblems));
+        localStorage.setItem('cf_global_problems_time', now.toString());
       }
     }
 
+    // --- FILTERING LOGIC ---
     statusDiv.innerText = "Filtering results...";
     const filtered = allProblems.filter(p => {
       const uniqueKey = p.contestId + p.index;
+      
+      // 1. Skip if solved by any friend
       if (solvedSet.has(uniqueKey)) return false;
       
-      if (p.rating !== undefined) {
-        if (p.rating < minRating || p.rating > maxRating) return false;
-      } else if (minRating > 0 && !p.isGym) {
-        return false;
-      }
+      // 2. Skip if it doesn't have an official rating or falls out of bounds
+      if (p.rating === undefined || p.rating < minRating || p.rating > maxRating) return false;
 
-      if (tags.length > 0) {
+      // 3. Match against the interactive selected tags set
+      if (selectedTags.size > 0) {
         if (!p.tags) return false;
         const pTags = p.tags.map(t => t.toLowerCase());
-        if (!tags.every(t => pTags.includes(t))) return false;
+        
+        // Ensure every single selected tag is active on this problem
+        for (let requiredTag of selectedTags) {
+          if (!pTags.includes(requiredTag)) return false;
+        }
       }
       return true;
     });
@@ -161,7 +188,7 @@ document.getElementById('findBtn').addEventListener('click', async () => {
         a.href = p.url;
         a.target = '_blank';
         a.className = 'problem-link';
-        a.innerText = `[${p.rating || 'Gym'}] ${p.name}`;
+        a.innerText = `[${p.rating}] ${p.name}`;
         resultsDiv.appendChild(a);
       });
     }

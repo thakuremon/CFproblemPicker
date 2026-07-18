@@ -2,120 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CF Friend-Free Problem Finder</title>
+  <title>CF Problem Picker</title>
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f4f6f9;
-      margin: 0;
-      padding: 40px 20px;
-      display: flex;
-      justify-content: center;
-    }
-    .container {
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 480px;
-    }
-    h2 { color: #3b5998; margin-top: 0; text-align: center; }
-    .field { margin-bottom: 16px; }
-    label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #444; }
-    input[type="text"], input[type="number"], input[type="file"] {
-      width: 100%;
-      padding: 10px;
-      box-sizing: border-box;
-      border: 1px solid #ccc;
+    body { font-family: sans-serif; margin: 20px; background: #f8f9fa; color: #333; }
+    .container { max-width: 500px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; }
+    input[type="number"], input[type="file"] { width: 100%; padding: 8px; box-sizing: border-box; }
+    
+    /* Interactive Tag Cloud Layout */
+    .tags-container { 
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 6px; 
+      max-height: 150px; 
+      overflow-y: auto; 
+      border: 1px solid #ccc; 
+      padding: 8px; 
       border-radius: 4px;
-      font-size: 14px;
-    }
-    input[type="file"] {
-      padding: 6px;
       background: #fafafa;
-      cursor: pointer;
     }
-    .file-status {
+    .tag-chip {
+      padding: 4px 8px;
+      background: #e9ecef;
+      border: 1px solid #ced4da;
+      border-radius: 12px;
       font-size: 12px;
-      color: #28a745;
-      margin-top: 4px;
-      font-weight: 500;
-    }
-    .row { display: flex; gap: 12px; }
-    .row input { flex: 1; }
-    button {
-      width: 100%;
-      padding: 12px;
-      background-color: #3b5998;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      font-weight: bold;
       cursor: pointer;
-      transition: background 0.2s;
+      user-select: none;
+      transition: all 0.1s ease;
     }
-    button:hover { background-color: #2d4373; }
-    button:disabled { background-color: #aaa; cursor: not-allowed; }
-    #status {
-      margin-top: 15px;
-      font-size: 13px;
-      color: #666;
-      text-align: center;
-      min-height: 20px;
+    .tag-chip:hover { background: #dee2e6; }
+    .tag-chip.selected {
+      background: #007bff;
+      color: white;
+      border-color: #0056b3;
     }
-    #results {
-      margin-top: 20px;
-      border-top: 1px solid #eee;
-      padding-top: 15px;
-    }
-    .problem-link {
-      display: block;
-      padding: 10px;
-      background: #f8f9fa;
-      margin-bottom: 8px;
-      border-left: 4px solid #3b5998;
-      border-radius: 4px;
-      color: #1a0dab;
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .problem-link:hover { background: #f1f3f5; text-decoration: underline; }
+
+    button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #status { margin-top: 10px; font-weight: bold; }
+    #results { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
+    .problem-link { display: block; padding: 10px; background: #f1f3f5; color: #007bff; text-decoration: none; border-radius: 4px; border-left: 4px solid #007bff; }
+    .problem-link:hover { background: #e9ecef; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>CF Problem Finder</h2>
+  <h2>Codeforces Problem Picker</h2>
   
-  <div class="field">
-    <label for="fileInput">Upload Friends List (.txt file, one handle per line)</label>
+  <div class="form-group">
+    <label>1. Upload Friends List (.txt)</label>
     <input type="file" id="fileInput" accept=".txt">
-    <div id="fileStatus" class="file-status">No handles loaded. Please upload a file.</div>
+    <div id="fileStatus" style="font-size: 12px; margin-top: 4px;"></div>
   </div>
 
-  <div class="field">
-    <label for="tags">Problem Tags (Comma-separated)</label>
-    <input type="text" id="tags" placeholder="dp, math, graphs">
-  </div>
-  
-  <div class="field">
-    <label>Rating Bounds (Min / Max)</label>
-    <div class="row">
-      <input type="number" id="minRating" placeholder="1200" value="1200">
-      <input type="number" id="maxRating" placeholder="1800" value="1800">
-    </div>
-  </div>
-  
-  <div class="field">
-    <label for="count">Number of Problems</label>
-    <input type="number" id="count" value="5" min="1">
+  <div class="form-group">
+    <label>2. Select Target Tags (Click to toggle)</label>
+    <div id="tagsContainer" class="tags-container"></div>
   </div>
 
-  <button id="findBtn">Find Unsolved Problems</button>
-  <div id="status">Ready</div>
+  <div class="form-group">
+    <label>Min Rating</label>
+    <input type="number" id="minRating" value="1200" placeholder="e.g. 1200">
+  </div>
+
+  <div class="form-group">
+    <label>Max Rating</label>
+    <input type="number" id="maxRating" value="1600" placeholder="e.g. 1600">
+  </div>
+
+  <div class="form-group">
+    <label>Problem Count</label>
+    <input type="number" id="count" value="5">
+  </div>
+
+  <button id="findBtn">Find Problems</button>
+  
+  <div id="status"></div>
   <div id="results"></div>
 </div>
 
