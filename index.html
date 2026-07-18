@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CF Friend-Free Problem Finder</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 480px;
+    }
+    h2 { color: #3b5998; margin-top: 0; text-align: center; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #444; }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .row { display: flex; gap: 12px; }
+    .row input { flex: 1; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #3b5998;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background-color: #2d4373; }
+    button:disabled { background-color: #aaa; cursor: not-allowed; }
+    #status {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      min-height: 20px;
+    }
+    #results {
+      margin-top: 20px;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+    .problem-link {
+      display: block;
+      padding: 10px;
+      background: #f8f9fa;
+      margin-bottom: 8px;
+      border-left: 4px solid #3b5998;
+      border-radius: 4px;
+      color: #1a0dab;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .problem-link:hover { background: #f1f3f5; text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>CF Problem Finder</h2>
+  
+  <div class="field">
+    <label for="handle">Your Codeforces Handle</label>
+    <input type="text" id="handle" placeholder="e.g., Tourist">
+  </div>
+
+  <div class="field">
+    <label for="tags">Problem Tags (Comma-separated)</label>
+    <input type="text" id="tags" placeholder="dp, math, graphs">
+  </div>
+  
+  <div class="field">
+    <label>Rating Bounds (Min / Max)</label>
+    <div class="row">
+      <input type="number" id="minRating" placeholder="1200" value="1200">
+      <input type="number" id="maxRating" placeholder="1800" value="1800">
+    </div>
+  </div>
+  
+  <div class="field">
+    <label for="count">Number of Problems</label>
+    <input type="number" id="count" value="5" min="1">
+  </div>
+
+  <button id="findBtn">Find Unsolved Problems</button>
+  <div id="status">Fill details and search</div>
+  <div id="results"></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
