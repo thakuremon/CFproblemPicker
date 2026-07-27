@@ -15,6 +15,7 @@
       min-height: 100vh;
       padding: 20px;
       box-sizing: border-box;
+      flex-direction: column;
     }
     .container { 
       width: 100%;
@@ -56,6 +57,36 @@
       border-color: #0056b3;
     }
 
+    /* Social Footer Styling */
+.social-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.social-footer a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  color: #495057;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  text-decoration: none;
+  font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.social-footer a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  color: #007bff;
+}
+
     button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 15px; margin-top: 10px; }
     button:disabled { background: #ccc; cursor: not-allowed; }
     #status { margin-top: 12px; font-weight: bold; font-size: 14px; text-align: center; }
@@ -63,6 +94,7 @@
     .problem-link { display: block; padding: 10px; background: #f1f3f5; color: #007bff; text-decoration: none; border-radius: 4px; border-left: 4px solid #007bff; font-weight: 500; }
     .problem-link:hover { background: #e9ecef; }
   </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
@@ -100,6 +132,18 @@
   <div id="status"></div>
   <div id="results"></div>
 </div>
+
+<footer class="social-footer">
+  <a href="https://www.facebook.com/emon1243/" target="_blank" aria-label="Facebook">
+    <i class="fab fa-facebook-f"></i>
+  </a>
+  <a href="https://www.linkedin.com/in/emon-thakur-415648254/" target="_blank" aria-label="LinkedIn">
+    <i class="fab fa-linkedin-in"></i>
+  </a>
+  <a href="mailto:thakuremon@gmail.com" aria-label="Gmail">
+    <i class="fas fa-envelope"></i>
+  </a>
+</footer>
 
 <script src="script.js"></script>
 </body>
