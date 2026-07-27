@@ -1,3 +1,7 @@
+/*
+ *   Copyright (c) 2026 Emon Thakur
+ *   All rights reserved.
+ */
 const REQUEST_DELAY = 300; 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
