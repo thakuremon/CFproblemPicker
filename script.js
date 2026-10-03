@@ -1,9 +1,6 @@
 const REQUEST_DELAY = 300; 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Caching Durations
-const SUBMISSION_CACHE_DURATION = 14 * 24 * 60 * 60 * 1000; // 14 Days
-
 const CF_AVAILABLE_TAGS = [
   "2-sat", "binary search", "bitmasks", "brute force", "busyness", 
   "chinese remainder theorem", "combinatorics", "constructive algorithms", 
@@ -18,7 +15,7 @@ const CF_AVAILABLE_TAGS = [
 let loadedFriends = [];
 let selectedTags = new Set();
 
-// Populate interactive tag selection chips and load cached handles on startup
+// Startup initialization
 window.addEventListener('DOMContentLoaded', () => {
   const tagsContainer = document.getElementById('tagsContainer');
   
@@ -54,7 +51,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Watch for file upload changes and save handles locally
+// Save uploaded handle list permanently
 document.getElementById('fileInput').addEventListener('change', (event) => {
   const file = event.target.files[0];
   const fileStatusDiv = document.getElementById('fileStatus');
@@ -67,8 +64,6 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
     
     if (loadedFriends.length > 0) {
       localStorage.setItem('cf_saved_friends', JSON.stringify(loadedFriends));
-      // Reset submission cache when handles change
-      localStorage.removeItem('cf_submission_history_cache');
       fileStatusDiv.innerText = `✓ Saved ${loadedFriends.length} handle(s) locally.`;
       fileStatusDiv.style.color = '#28a745';
     } else {
@@ -79,7 +74,44 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
   reader.readAsText(file);
 });
 
-// Main execution logic
+// Helper function: Fetch or read user submission history from localStorage
+async function getSolvedProblemsForHandle(handle, statusDiv) {
+  const cacheKey = `cf_user_solved_${handle.toLowerCase()}`;
+  const cached = localStorage.getItem(cacheKey);
+
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      return new Set(parsed);
+    } catch (e) {
+      localStorage.removeItem(cacheKey);
+    }
+  }
+
+  // Fetch from Codeforces API if not cached
+  statusDiv.innerText = `Fetching submissions from API: ${handle}...`;
+  const solved = new Set();
+  try {
+    const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(handle)}`);
+    const data = await res.json();
+    if (data.status === 'OK') {
+      data.result.forEach(sub => {
+        if (sub.verdict === 'OK' && sub.problem && sub.problem.contestId) {
+          solved.add(sub.problem.contestId + sub.problem.index);
+        }
+      });
+      // Store in localStorage permanently
+      localStorage.setItem(cacheKey, JSON.stringify(Array.from(solved)));
+    }
+  } catch (e) {
+    console.error(`Error fetching data for ${handle}:`, e);
+  }
+  
+  await delay(REQUEST_DELAY);
+  return solved;
+}
+
+// Main Button Action
 document.getElementById('findBtn').addEventListener('click', async () => {
   const findBtn = document.getElementById('findBtn');
   const statusDiv = document.getElementById('status');
@@ -91,7 +123,6 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   const maxRating = parseInt(document.getElementById('maxRating').value) || 5000;
   const count = parseInt(document.getElementById('count').value) || 5;
 
-  // Combine single handle input with file handles and remove duplicates
   let activeHandles = [...loadedFriends];
   if (singleHandle) {
     activeHandles.push(singleHandle);
@@ -99,7 +130,7 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   activeHandles = [...new Set(activeHandles)];
 
   if (activeHandles.length === 0) {
-    statusDiv.innerText = "Error: Please enter a single handle OR upload a handles file.";
+    statusDiv.innerText = "Error: Please enter a handle or upload a handles file.";
     statusDiv.style.color = '#dc3545';
     return;
   }
@@ -109,115 +140,105 @@ document.getElementById('findBtn').addEventListener('click', async () => {
   statusDiv.style.color = '#333';
   
   try {
-    const now = Date.now();
-    let solvedSet = new Set();
-
-    // --- STEP 1: CHECK AND UTILIZE LOCAL SUBMISSION CACHE ---
-    let cachedSubmissionData = null;
-    const rawCache = localStorage.getItem('cf_submission_history_cache');
-    
-    if (rawCache) {
-      try {
-        const parsed = JSON.parse(rawCache);
-        // Ensure cache is within expiration period and matches current handles
-        const handlesMatch = JSON.stringify(parsed.handles.sort()) === JSON.stringify([...activeHandles].sort());
-        if (now - parsed.timestamp < SUBMISSION_CACHE_DURATION && handlesMatch) {
-          cachedSubmissionData = new Set(parsed.solvedList);
-        }
-      } catch (e) {
-        localStorage.removeItem('cf_submission_history_cache');
-      }
+    // --- STEP 1: CONSOLIDATE SOLVED PROBLEMS ACROSS ALL HANDLES ---
+    let combinedSolvedSet = new Set();
+    for (let i = 0; i < activeHandles.length; i++) {
+      const handle = activeHandles[i];
+      const handleSolved = await getSolvedProblemsForHandle(handle, statusDiv);
+      handleSolved.forEach(id => combinedSolvedSet.add(id));
     }
 
-    if (cachedSubmissionData) {
-      statusDiv.innerText = "Loaded submission histories from local cache ⚡";
-      solvedSet = cachedSubmissionData;
-    } else {
-      // Fetch fresh submission history from Codeforces API
-      for (let i = 0; i < activeHandles.length; i++) {
-        statusDiv.innerText = `Fetching submissions [${i + 1}/${activeHandles.length}]: ${activeHandles[i]}`;
-        try {
-          const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(activeHandles[i])}`);
-          const data = await res.json();
-          if (data.status === 'OK') {
-            data.result.forEach(sub => {
-              if (sub.verdict === 'OK' && sub.problem) {
-                solvedSet.add(sub.problem.contestId + sub.problem.index);
-              }
-            });
-          }
-        } catch (e) { 
-          console.error(`Failed to fetch submissions for ${activeHandles[i]}:`, e); 
-        }
-        await delay(REQUEST_DELAY);
-      }
+    statusDiv.innerText = "Loading problem set from Codeforces...";
 
-      // Store fetched submissions in localStorage
-      localStorage.setItem('cf_submission_history_cache', JSON.stringify({
-        timestamp: now,
-        handles: activeHandles,
-        solvedList: Array.from(solvedSet)
-      }));
-    }
-
-    // --- STEP 2: FETCH PROBLEMS FROM CODEFORCES API ---
-    statusDiv.innerText = "Fetching problems from Codeforces...";
-    const pRes = await fetch(`https://codeforces.com/api/problemset.problems?includeGym=${includeGym}`);
+    // --- STEP 2: FETCH GLOBAL PROBLEMS ---
+    const pRes = await fetch(`https://codeforces.com/api/problemset.problems?includeGym=true`);
     const pData = await pRes.json();
     
-    let allProblems = [];
-    if (pData.status === 'OK') {
-      allProblems = pData.result.problems.map(p => ({
+    if (pData.status !== 'OK') {
+      throw new Error("Failed to load problem set from Codeforces API.");
+    }
+
+    const allProblems = pData.result.problems.map(p => {
+      const isGym = p.contestId >= 100000 || p.rating === undefined;
+      return {
         contestId: p.contestId,
         index: p.index,
         name: p.name,
-        rating: p.rating, // Undefined for Gym / unrated problems
+        rating: p.rating,
         tags: p.tags || [],
-        // Gym problems don't always have contestId >= 100000; check rating existence or contest structure
-        isGym: p.rating === undefined || p.contestId >= 100000,
-        url: (p.contestId >= 100000 || p.rating === undefined)
+        isGym: isGym,
+        url: isGym 
              ? `https://codeforces.com/gym/${p.contestId}/problem/${p.index}`
              : `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`
-      }));
-    }
-
-    // --- STEP 3: FILTER PROBLEMS ---
-    statusDiv.innerText = "Filtering problems...";
-    const filtered = allProblems.filter(p => {
-      const uniqueKey = p.contestId + p.index;
-      
-      // 1. Exclude solved problems
-      if (solvedSet.has(uniqueKey)) return false;
-      
-      // 2. Rating Boundary Filter
-      // FIX: If Gym checkbox is checked and problem is Gym/Unrated, skip rating checks
-      if (p.isGym) {
-        if (!includeGym) return false; // Exclude Gym if unchecked
-      } else {
-        // Standard rated problem rating validation
-        if (p.rating === undefined || p.rating < minRating || p.rating > maxRating) return false;
-      }
-
-      // 3. Tag Filter
-      if (selectedTags.size > 0) {
-        if (!p.tags || p.tags.length === 0) return false;
-        const pTags = p.tags.map(t => t.toLowerCase());
-        for (let requiredTag of selectedTags) {
-          if (!pTags.includes(requiredTag)) return false;
-        }
-      }
-      return true;
+      };
     });
 
-    // Randomize and limit results
-    const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, count);
+    // --- STEP 3: FILTER AND SEPARATE INTO GYM AND STANDARD POOLS ---
+    const gymPool = [];
+    const standardPool = [];
 
-    // --- STEP 4: RENDER RESULTS ---
-    if (shuffled.length === 0) {
+    allProblems.forEach(p => {
+      const uniqueKey = p.contestId + p.index;
+
+      // 1. Skip solved problems
+      if (combinedSolvedSet.has(uniqueKey)) return;
+
+      // 2. Filter by Tags
+      if (selectedTags.size > 0) {
+        if (!p.tags || p.tags.length === 0) return;
+        const pTags = p.tags.map(t => t.toLowerCase());
+        for (let requiredTag of selectedTags) {
+          if (!pTags.includes(requiredTag)) return;
+        }
+      }
+
+      // 3. Separate into Pools & Apply Rating Bounds to Standard Problems
+      if (p.isGym) {
+        gymPool.push(p);
+      } else {
+        if (p.rating !== undefined && p.rating >= minRating && p.rating <= maxRating) {
+          standardPool.push(p);
+        }
+      }
+    });
+
+    // Randomize Pools
+    gymPool.sort(() => 0.5 - Math.random());
+    standardPool.sort(() => 0.5 - Math.random());
+
+    // --- STEP 4: SELECT 50% GYM & 50% STANDARD IF CHECKED ---
+    let selectedProblems = [];
+
+    if (includeGym) {
+      const gymTarget = Math.ceil(count / 2);
+      const standardTarget = count - gymTarget;
+
+      const pickedGym = gymPool.slice(0, gymTarget);
+      const pickedStandard = standardPool.slice(0, standardTarget);
+
+      selectedProblems = [...pickedGym, ...pickedStandard];
+
+      // Fill remaining slots if one pool ran out of problems
+      if (selectedProblems.length < count) {
+        const remainingNeeded = count - selectedProblems.length;
+        const remainingGym = gymPool.slice(gymTarget);
+        const remainingStandard = standardPool.slice(standardTarget);
+        selectedProblems.push(...remainingGym.concat(remainingStandard).slice(0, remainingNeeded));
+      }
+    } else {
+      selectedProblems = standardPool.slice(0, count);
+    }
+
+    // Final Shuffle so Gym and Standard problems are mixed
+    selectedProblems.sort(() => 0.5 - Math.random());
+
+    // --- STEP 5: RENDER RESULTS ---
+    if (selectedProblems.length === 0) {
       statusDiv.innerText = "No matching problems found.";
     } else {
-      statusDiv.innerText = `Success! Found ${shuffled.length} problem(s).`;
-      shuffled.forEach(p => {
+      statusDiv.innerText = `Success! Selected ${selectedProblems.length} problem(s).`;
+      
+      selectedProblems.forEach(p => {
         const problemId = `${p.contestId}${p.index}`;
         
         const card = document.createElement('div');
