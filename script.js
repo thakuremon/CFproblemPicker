@@ -1,14 +1,10 @@
-/*
- *   Copyright (c) 2026 Emon Thakur
- *   All rights reserved.
- */
 const REQUEST_DELAY = 300; 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const FRIENDS_CACHE_DURATION = 60 * 60 * 1000;        
 const PROBLEMS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; 
 
-// The comprehensive array of all official Codeforces problem tags
+// Comprehensive array of official Codeforces problem tags
 const CF_AVAILABLE_TAGS = [
   "2-sat", "binary search", "bitmasks", "brute force", "busyness", 
   "chinese remainder theorem", "combinatorics", "constructive algorithms", 
@@ -23,7 +19,7 @@ const CF_AVAILABLE_TAGS = [
 let loadedFriends = [];
 let selectedTags = new Set();
 
-// Populate the visual tag selectors dynamically on startup
+// Populate interactive tag selection chips and load cached handles on startup
 window.addEventListener('DOMContentLoaded', () => {
   const tagsContainer = document.getElementById('tagsContainer');
   
@@ -45,17 +41,17 @@ window.addEventListener('DOMContentLoaded', () => {
     tagsContainer.appendChild(chip);
   });
 
-  // Load handles from localStorage cache if present
+  // Check localStorage for previously saved friends file handles
   const cachedFriends = localStorage.getItem('cf_saved_friends');
   const fileStatusDiv = document.getElementById('fileStatus');
   if (cachedFriends) {
     loadedFriends = JSON.parse(cachedFriends);
-    fileStatusDiv.innerText = `✓ Loaded ${loadedFriends.length} handles from persistent storage.`;
+    fileStatusDiv.innerText = `✓ Loaded ${loadedFriends.length} handle(s) from local cache.`;
     fileStatusDiv.style.color = '#28a745';
   }
 });
 
-// Watch for file upload changes and save values
+// Watch for file upload changes and update local storage
 document.getElementById('fileInput').addEventListener('change', (event) => {
   const file = event.target.files[0];
   const fileStatusDiv = document.getElementById('fileStatus');
@@ -69,111 +65,105 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
     if (loadedFriends.length > 0) {
       localStorage.setItem('cf_saved_friends', JSON.stringify(loadedFriends));
       localStorage.removeItem('cf_submission_history_cache');
-      fileStatusDiv.innerText = `✓ Successfully saved ${loadedFriends.length} handles. Ready to use!`;
+      fileStatusDiv.innerText = `✓ Successfully saved ${loadedFriends.length} handle(s).`;
       fileStatusDiv.style.color = '#28a745';
     } else {
-      fileStatusDiv.innerText = "Error: The uploaded file appears to be empty.";
+      fileStatusDiv.innerText = "Error: Uploaded file is empty.";
       fileStatusDiv.style.color = '#dc3545';
     }
   };
   reader.readAsText(file);
 });
 
+// Main button execution handler
 document.getElementById('findBtn').addEventListener('click', async () => {
   const findBtn = document.getElementById('findBtn');
   const statusDiv = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
   
+  const singleHandle = document.getElementById('singleHandleInput').value.trim();
+  const includeGym = document.getElementById('includeGymCheckbox').checked;
   const minRating = parseInt(document.getElementById('minRating').value) || 0;
   const maxRating = parseInt(document.getElementById('maxRating').value) || 5000;
   const count = parseInt(document.getElementById('count').value) || 5;
 
-  if (loadedFriends.length === 0) {
-    statusDiv.innerText = "Error: Please upload a text file containing friend handles first!";
+  // Combine single handle input with file handles and remove duplicates
+  let activeHandles = [...loadedFriends];
+  if (singleHandle) {
+    activeHandles.push(singleHandle);
+  }
+  activeHandles = [...new Set(activeHandles)];
+
+  if (activeHandles.length === 0) {
+    statusDiv.innerText = "Error: Please enter a single handle OR upload a handles file.";
+    statusDiv.style.color = '#dc3545';
     return;
   }
 
   findBtn.disabled = true;
   resultsDiv.innerHTML = '';
+  statusDiv.style.color = '#333';
   
   try {
     let solvedSet = new Set();
     const now = Date.now();
     
-    // --- LAYER 1: FRIEND SUBMISSION CACHE ---
-    const cachedFriendsData = localStorage.getItem('cf_submission_history_cache');
-    const cachedFriendsTime = localStorage.getItem('cf_submission_history_time');
-
-    if (cachedFriendsData && cachedFriendsTime && (now - parseInt(cachedFriendsTime) < FRIENDS_CACHE_DURATION)) {
-      statusDiv.innerText = "Loading cached friend problem histories...";
-      solvedSet = new Set(JSON.parse(cachedFriendsData));
-    } else {
-      for (let i = 0; i < loadedFriends.length; i++) {
-        statusDiv.innerText = `Syncing data [${i + 1}/${loadedFriends.length}]: ${loadedFriends[i]}`;
-        try {
-          const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(loadedFriends[i])}`);
-          const data = await res.json();
-          if (data.status === 'OK') {
-            data.result.forEach(sub => {
-              if (sub.verdict === 'OK') {
-                solvedSet.add(sub.problem.contestId + sub.problem.index);
-              }
-            });
-          }
-        } catch (e) { console.error(e); }
-        await delay(REQUEST_DELAY);
+    // --- STEP 1: FETCH SUBMISSION HISTORY FOR ALL HANDLES ---
+    for (let i = 0; i < activeHandles.length; i++) {
+      statusDiv.innerText = `Syncing data [${i + 1}/${activeHandles.length}]: ${activeHandles[i]}`;
+      try {
+        const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(activeHandles[i])}`);
+        const data = await res.json();
+        if (data.status === 'OK') {
+          data.result.forEach(sub => {
+            if (sub.verdict === 'OK') {
+              solvedSet.add(sub.problem.contestId + sub.problem.index);
+            }
+          });
+        }
+      } catch (e) { 
+        console.error(`Failed to fetch submissions for ${activeHandles[i]}:`, e); 
       }
-      localStorage.setItem('cf_submission_history_cache', JSON.stringify(Array.from(solvedSet)));
-      localStorage.setItem('cf_submission_history_time', now.toString());
+      await delay(REQUEST_DELAY);
     }
 
-    // --- LAYER 2: GLOBAL PROBLEM LIST CACHE ---
+    // --- STEP 2: FETCH GLOBAL PROBLEM SET (GENERAL + GYM IF CHECKED) ---
+    statusDiv.innerText = "Fetching problems from Codeforces...";
+    const pRes = await fetch(`https://codeforces.com/api/problemset.problems?includeGym=${includeGym}`);
+    const pData = await pRes.json();
+    
     let allProblems = [];
-    const cachedProblemsData = localStorage.getItem('cf_global_problems_cache');
-    const cachedProblemsTime = localStorage.getItem('cf_global_problems_time');
-
-    if (cachedProblemsData && cachedProblemsTime && (now - parseInt(cachedProblemsTime) < PROBLEMS_CACHE_DURATION)) {
-      statusDiv.innerText = "Loading cached Codeforces problem sets...";
-      allProblems = JSON.parse(cachedProblemsData);
-    } else {
-      statusDiv.innerText = "Fetching fresh standard problems from CF...";
-      const pRes = await fetch('https://codeforces.com/api/problemset.problems');
-      const pData = await pRes.json();
-      
-      if (pData.status === 'OK') {
-        allProblems = pData.result.problems.map(p => ({
-          contestId: p.contestId,
-          index: p.index,
-          name: p.name,
-          rating: p.rating,
-          tags: p.tags,
-          url: `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`
-        }));
-      }
-
-      if (allProblems.length > 0) {
-        localStorage.setItem('cf_global_problems_cache', JSON.stringify(allProblems));
-        localStorage.setItem('cf_global_problems_time', now.toString());
-      }
+    if (pData.status === 'OK') {
+      allProblems = pData.result.problems.map(p => ({
+        contestId: p.contestId,
+        index: p.index,
+        name: p.name,
+        rating: p.rating,
+        tags: p.tags,
+        url: p.contestId < 100000 
+             ? `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`
+             : `https://codeforces.com/gym/${p.contestId}/problem/${p.index}`
+      }));
     }
 
-    // --- FILTERING LOGIC ---
-    statusDiv.innerText = "Filtering results...";
+    // --- STEP 3: APPLY FILTERS ---
+    statusDiv.innerText = "Filtering problems...";
     const filtered = allProblems.filter(p => {
       const uniqueKey = p.contestId + p.index;
       
-      // 1. Skip if solved by any friend
+      // 1. Filter out problems already solved by any specified user
       if (solvedSet.has(uniqueKey)) return false;
       
-      // 2. Skip if it doesn't have an official rating or falls out of bounds
-      if (p.rating === undefined || p.rating < minRating || p.rating > maxRating) return false;
+      // 2. Rating Boundary Filter (Skip rating boundaries for Gym problems)
+      const isGym = p.contestId >= 100000;
+      if (!isGym) {
+        if (p.rating === undefined || p.rating < minRating || p.rating > maxRating) return false;
+      }
 
-      // 3. Match against the interactive selected tags set
+      // 3. Selected Tags Filter
       if (selectedTags.size > 0) {
         if (!p.tags) return false;
         const pTags = p.tags.map(t => t.toLowerCase());
-        
-        // Ensure every single selected tag is active on this problem
         for (let requiredTag of selectedTags) {
           if (!pTags.includes(requiredTag)) return false;
         }
@@ -181,24 +171,49 @@ document.getElementById('findBtn').addEventListener('click', async () => {
       return true;
     });
 
+    // Randomize and limit results
     const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, count);
 
+    // --- STEP 4: RENDER RESULTS WITH COPY BUTTON ---
     if (shuffled.length === 0) {
       statusDiv.innerText = "No matching problems found.";
     } else {
       statusDiv.innerText = `Success! Found ${shuffled.length} problem(s).`;
       shuffled.forEach(p => {
-        const a = document.createElement('a');
-        a.href = p.url;
-        a.target = '_blank';
-        a.className = 'problem-link';
-        a.innerText = `[${p.rating}] ${p.name}`;
-        resultsDiv.appendChild(a);
+        const problemId = `${p.contestId}${p.index}`;
+        
+        const card = document.createElement('div');
+        card.className = 'problem-card';
+
+        const link = document.createElement('a');
+        link.href = p.url;
+        link.target = '_blank';
+        link.className = 'problem-link';
+        link.innerText = `[${p.rating || 'Gym'}] ${problemId} - ${p.name}`;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerText = 'Copy ID';
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(problemId).then(() => {
+            copyBtn.innerText = 'Copied!';
+            copyBtn.classList.add('copied');
+            setTimeout(() => {
+              copyBtn.innerText = 'Copy ID';
+              copyBtn.classList.remove('copied');
+            }, 1500);
+          }).catch(err => console.error('Copy failed:', err));
+        });
+
+        card.appendChild(link);
+        card.appendChild(copyBtn);
+        resultsDiv.appendChild(card);
       });
     }
 
   } catch (error) {
     statusDiv.innerText = "Error: " + error.message;
+    statusDiv.style.color = '#dc3545';
   } finally {
     findBtn.disabled = false;
   }

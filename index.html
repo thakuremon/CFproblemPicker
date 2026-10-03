@@ -2,10 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CF Problem Picker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codeforces Problem Picker</title>
+
+  <!-- Vercel Analytics & Speed Insights -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script>
+    window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
     body { 
-      font-family: sans-serif; 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
       margin: 0; 
       background: #f8f9fa; 
       color: #333; 
@@ -19,7 +34,7 @@
     }
     .container { 
       width: 100%;
-      max-width: 500px; 
+      max-width: 520px; 
       background: white; 
       padding: 24px; 
       border-radius: 8px; 
@@ -27,8 +42,32 @@
     }
     .form-group { margin-bottom: 18px; }
     label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px; }
-    input[type="number"], input[type="file"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    input[type="text"], input[type="number"], input[type="file"] { 
+      width: 100%; 
+      padding: 8px; 
+      box-sizing: border-box; 
+      border: 1px solid #ccc; 
+      border-radius: 4px; 
+      font-size: 14px;
+    }
     
+    .divider-text {
+      text-align: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: #6c757d;
+      margin: 8px 0;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: normal;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
     .tags-container { 
       display: flex; 
       flex-wrap: wrap; 
@@ -57,51 +96,84 @@
       border-color: #0056b3;
     }
 
-    /* Social Footer Styling */
-.social-footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
+    button.find-btn { 
+      width: 100%; 
+      padding: 12px; 
+      background: #007bff; 
+      color: white; 
+      border: none; 
+      border-radius: 4px; 
+      font-weight: bold; 
+      cursor: pointer; 
+      font-size: 15px; 
+      margin-top: 10px; 
+    }
+    button.find-btn:disabled { background: #ccc; cursor: not-allowed; }
 
-.social-footer a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: #ffffff;
-  color: #495057;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  text-decoration: none;
-  font-size: 18px;
-  transition: all 0.2s ease;
-}
-
-.social-footer a:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  color: #007bff;
-}
-
-    button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 15px; margin-top: 10px; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
     #status { margin-top: 12px; font-weight: bold; font-size: 14px; text-align: center; }
     #results { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
-    .problem-link { display: block; padding: 10px; background: #f1f3f5; color: #007bff; text-decoration: none; border-radius: 4px; border-left: 4px solid #007bff; font-weight: 500; }
-    .problem-link:hover { background: #e9ecef; }
-  </style>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    .problem-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background: #f1f3f5;
+      border-radius: 4px;
+      border-left: 4px solid #007bff;
+    }
+    .problem-link { 
+      color: #007bff; 
+      text-decoration: none; 
+      font-weight: 500; 
+      word-break: break-word;
+    }
+    .problem-link:hover { text-decoration: underline; }
+    
+    .copy-btn {
+      background: #343a40;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      margin-left: 10px;
+      transition: background 0.2s ease;
+    }
+    .copy-btn:hover { background: #212529; }
+    .copy-btn.copied { background: #28a745; }
 
-  <!-- Vercel Web Analytics -->
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/speed-insights/script.js"></script>
-  <script defer src="/_vercel/insights/script.js"></script>
+    /* Social Footer Styling */
+    .social-footer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .social-footer a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #ffffff;
+      color: #495057;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      text-decoration: none;
+      font-size: 18px;
+      transition: all 0.2s ease;
+    }
+    .social-footer a:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+      color: #007bff;
+    }
+  </style>
 </head>
 <body>
 
@@ -109,13 +181,23 @@
   <h2 style="margin-top: 0; text-align: center; color: #222;">Codeforces Problem Picker</h2>
   
   <div class="form-group">
-    <label>1. Upload Friends List (.txt)</label>
+    <label>1. Enter Handles</label>
+    <input type="text" id="singleHandleInput" placeholder="Single handle (e.g. tourist)">
+    <div class="divider-text">OR</div>
     <input type="file" id="fileInput" accept=".txt">
     <div id="fileStatus" style="font-size: 12px; margin-top: 4px;"></div>
   </div>
 
   <div class="form-group">
-    <label>2. Select Target Tags (Click to toggle)</label>
+    <label>2. Options</label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="includeGymCheckbox">
+      Include Gym Problems (Ignores rating boundaries)
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label>3. Select Target Tags (Click to toggle)</label>
     <div id="tagsContainer" class="tags-container"></div>
   </div>
 
@@ -134,7 +216,7 @@
     <input type="number" id="count" value="5">
   </div>
 
-  <button id="findBtn">Find Problems</button>
+  <button id="findBtn" class="find-btn">Find Problems</button>
   
   <div id="status"></div>
   <div id="results"></div>
@@ -152,6 +234,211 @@
   </a>
 </footer>
 
-<script src="script.js"></script>
+<script>
+const REQUEST_DELAY = 300; 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const FRIENDS_CACHE_DURATION = 60 * 60 * 1000;        
+const PROBLEMS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; 
+
+const CF_AVAILABLE_TAGS = [
+  "2-sat", "binary search", "bitmasks", "brute force", "busyness", 
+  "chinese remainder theorem", "combinatorics", "constructive algorithms", 
+  "data structures", "dfs and similar", "divide and conquer", "dp", 
+  "dsu", "expression parsing", "fft", "flows", "games", "geometry", 
+  "graph matchings", "graphs", "greedy", "hashing", "implementation", 
+  "interactive", "math", "matrices", "meet-in-the-middle", "number theory", 
+  "probabilities", "schedules", "shortest paths", "sortings", "string suffix structures", 
+  "strings", "ternary search", "trees", "two pointers"
+];
+
+let loadedFriends = [];
+let selectedTags = new Set();
+
+window.addEventListener('DOMContentLoaded', () => {
+  const tagsContainer = document.getElementById('tagsContainer');
+  
+  CF_AVAILABLE_TAGS.forEach(tag => {
+    const chip = document.createElement('div');
+    chip.className = 'tag-chip';
+    chip.innerText = tag;
+    
+    chip.addEventListener('click', () => {
+      if (selectedTags.has(tag)) {
+        selectedTags.delete(tag);
+        chip.classList.remove('selected');
+      } else {
+        selectedTags.add(tag);
+        chip.classList.add('selected');
+      }
+    });
+    
+    tagsContainer.appendChild(chip);
+  });
+
+  const cachedFriends = localStorage.getItem('cf_saved_friends');
+  const fileStatusDiv = document.getElementById('fileStatus');
+  if (cachedFriends) {
+    loadedFriends = JSON.parse(cachedFriends);
+    fileStatusDiv.innerText = `✓ Loaded ${loadedFriends.length} handle(s) from local cache.`;
+    fileStatusDiv.style.color = '#28a745';
+  }
+});
+
+document.getElementById('fileInput').addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  const fileStatusDiv = document.getElementById('fileStatus');
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    loadedFriends = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    if (loadedFriends.length > 0) {
+      localStorage.setItem('cf_saved_friends', JSON.stringify(loadedFriends));
+      localStorage.removeItem('cf_submission_history_cache');
+      fileStatusDiv.innerText = `✓ Successfully saved ${loadedFriends.length} handle(s).`;
+      fileStatusDiv.style.color = '#28a745';
+    } else {
+      fileStatusDiv.innerText = "Error: Uploaded file is empty.";
+      fileStatusDiv.style.color = '#dc3545';
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('findBtn').addEventListener('click', async () => {
+  const findBtn = document.getElementById('findBtn');
+  const statusDiv = document.getElementById('status');
+  const resultsDiv = document.getElementById('results');
+  
+  const singleHandle = document.getElementById('singleHandleInput').value.trim();
+  const includeGym = document.getElementById('includeGymCheckbox').checked;
+  const minRating = parseInt(document.getElementById('minRating').value) || 0;
+  const maxRating = parseInt(document.getElementById('maxRating').value) || 5000;
+  const count = parseInt(document.getElementById('count').value) || 5;
+
+  let activeHandles = [...loadedFriends];
+  if (singleHandle) {
+    activeHandles.push(singleHandle);
+  }
+  activeHandles = [...new Set(activeHandles)];
+
+  if (activeHandles.length === 0) {
+    statusDiv.innerText = "Error: Please enter a single handle OR upload a handles file.";
+    statusDiv.style.color = '#dc3545';
+    return;
+  }
+
+  findBtn.disabled = true;
+  resultsDiv.innerHTML = '';
+  statusDiv.style.color = '#333';
+  
+  try {
+    let solvedSet = new Set();
+    const now = Date.now();
+    
+    for (let i = 0; i < activeHandles.length; i++) {
+      statusDiv.innerText = `Syncing data [${i + 1}/${activeHandles.length}]: ${activeHandles[i]}`;
+      try {
+        const res = await fetch(`https://codeforces.com/api/user.status?handle=${encodeURIComponent(activeHandles[i])}`);
+        const data = await res.json();
+        if (data.status === 'OK') {
+          data.result.forEach(sub => {
+            if (sub.verdict === 'OK') {
+              solvedSet.add(sub.problem.contestId + sub.problem.index);
+            }
+          });
+        }
+      } catch (e) { console.error(e); }
+      await delay(REQUEST_DELAY);
+    }
+
+    statusDiv.innerText = "Fetching problems from Codeforces...";
+    const pRes = await fetch(`https://codeforces.com/api/problemset.problems?includeGym=${includeGym}`);
+    const pData = await pRes.json();
+    
+    let allProblems = [];
+    if (pData.status === 'OK') {
+      allProblems = pData.result.problems.map(p => ({
+        contestId: p.contestId,
+        index: p.index,
+        name: p.name,
+        rating: p.rating,
+        tags: p.tags,
+        url: p.contestId < 100000 
+             ? `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`
+             : `https://codeforces.com/gym/${p.contestId}/problem/${p.index}`
+      }));
+    }
+
+    statusDiv.innerText = "Filtering problems...";
+    const filtered = allProblems.filter(p => {
+      const uniqueKey = p.contestId + p.index;
+      
+      if (solvedSet.has(uniqueKey)) return false;
+      
+      const isGym = p.contestId >= 100000;
+      if (!isGym) {
+        if (p.rating === undefined || p.rating < minRating || p.rating > maxRating) return false;
+      }
+
+      if (selectedTags.size > 0) {
+        if (!p.tags) return false;
+        const pTags = p.tags.map(t => t.toLowerCase());
+        for (let requiredTag of selectedTags) {
+          if (!pTags.includes(requiredTag)) return false;
+        }
+      }
+      return true;
+    });
+
+    const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, count);
+
+    if (shuffled.length === 0) {
+      statusDiv.innerText = "No matching problems found.";
+    } else {
+      statusDiv.innerText = `Success! Found ${shuffled.length} problem(s).`;
+      shuffled.forEach(p => {
+        const problemId = `${p.contestId}${p.index}`;
+        
+        const card = document.createElement('div');
+        card.className = 'problem-card';
+
+        const link = document.createElement('a');
+        link.href = p.url;
+        link.target = '_blank';
+        link.className = 'problem-link';
+        link.innerText = `[${p.rating || 'Gym'}] ${problemId} - ${p.name}`;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerText = 'Copy ID';
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(problemId).then(() => {
+            copyBtn.innerText = 'Copied!';
+            copyBtn.classList.add('copied');
+            setTimeout(() => {
+              copyBtn.innerText = 'Copy ID';
+              copyBtn.classList.remove('copied');
+            }, 1500);
+          });
+        });
+
+        card.appendChild(link);
+        card.appendChild(copyBtn);
+        resultsDiv.appendChild(card);
+      });
+    }
+
+  } catch (error) {
+    statusDiv.innerText = "Error: " + error.message;
+    statusDiv.style.color = '#dc3545';
+  } finally {
+    findBtn.disabled = false;
+  }
+});
+</script>
 </body>
 </html>
